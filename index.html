@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Future Construction Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const SUPABASE_URL = 'https://mifhyzyeidlpkugfwogl.supabase.co'; // Replace with your URL
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pZmh5enllaWRscGt1Z2Z3b2dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2NTkzNTksImV4cCI6MjA3NzIzNTM1OX0.cJi_7cnOI9PY5Q0PCWQ2IwVOOOXkT2tDss9qy2Xvydc'; // Replace with your key
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('en-EG', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value || 0);
+        };
+
+        const formatDate = (dateString) => {
+            return new Date(dateString).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        };
+
+        const formatDateTime = (dateString) => {
+            return new Date(dateString).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        };
+
+        // ============================================
+        // MAIN APP
+        // ============================================
+        const ConstructionManagementSystem = () => {
+            const [currentView, setCurrentView] = useState('dashboard');
+            const [projects, setProjects] = useState([]);
+            const [subcontractors, setSubcontractors] = useState([]);
+            const [suppliers, setSuppliers] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [message, setMessage] = useState({ text: '', type: '' });
+
+            useEffect(() => {
+                loadAllData();
+            }, []);
+
+            const loadAllData = async () => {
+                setLoading(true);
+                try {
+                    await Promise.all([loadProjects(), loadSubcontractors(), loadSuppliers()]);
+                } catch (error) {
+                    showMessage('Error loading data: ' + error.message, 'error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadProjects = async () => {
+                const { data, error } = await supabase
+                    .from('projects')
+                    .select(`
+                *,
+                project_items (
+                    *,
+                    subcontractor_assignments (
+                        *,
+                        subcontractors (*),
+                        subcontractor_payments (*)
+                    )
+                ),
+                extra_fees (*),
+                material_receipts (
+                    *,
+                    material_suppliers (*),
+                    material_receipt_items (*)
+                ),
+                owner_payments (*)
+            `)
+                    .order('created_at', { ascending: false });
+                if (error) throw error;
+                setProjects(data || []);
+            };
+
+            const loadSubcontractors = async () => {
+                const { data, error } = await supabase
+                    .from('subcontractors')
+                    .select(`
+                *,
+                subcontractor_assignments (
+                    *,
+                    project_items (*, projects (name)),
+                    subcontractor_payments (*)
+                )
+            `)
+                    .order('name');
+                if (error) throw error;
+                setSubcontractors(data || []);
+            };
+
+            const loadSuppliers = async () => {
+                const { data, error } = await supabase
+                    .from('material_suppliers')
+                    .select(`
+                *,
+                material_receipts (
+                    *,
+                    projects (name),
+                    material_receipt_items (*)
+                ),
+                supplier_payments (*)
+            `)
+                    .order('name');
+                if (error) throw error;
+                setSuppliers(data || []);
+            };
+
+            const showMessage = (text, type = 'success') => {
+                setMessage({ text, type });
+                setTimeout(() => setMessage({ text: '', type: '' }), 4000);
+            };
+
+            const dashboardMetrics = useMemo(() => {
+                let totalRevenue = 0, totalArea = 0, totalCosts = 0;
+                let totalSubPaid = 0, totalSubOwed = 0;
+                let totalMatCost = 0, totalMatPaid = 0, totalMatOwed = 0;
+                let totalOwnerPaid = 0, totalOwnerOwed = 0;
+
+                projects.forEach(project => {
+                    project.project_items?.forEach(item => {
+                        const area = parseFloat(item.area) || 0;
+                        const price = parseFloat(item.price_per_m2) || 0;
+                        const matCost = parseFloat(item.material_cost_per_m2) || 0;
+                        totalArea += area;
+                        totalRevenue += area * price;
+                        totalCosts += area * matCost;
+
+                        item.subcontractor_assignments?.forEach(assignment => {
+                            const subPrice = parseFloat(assignment.price_per_m2) || 0;
+                            const total = area * subPrice;
+                            const paid = assignment.subcontractor_payments?.reduce((sum, p) =>
+                                sum + (parseFloat(p.amount) || 0), 0) || 0;
+                            totalCosts += total;
+                            totalSubPaid += paid;
+                            totalSubOwed += (total - paid);
+                        });
+                    });
+
+                    project.material_receipts?.forEach(receipt => {
+                        const receiptTotal = parseFloat(receipt.total_amount) || 0;
+                        totalMatCost += receiptTotal;
+                        totalCosts += receiptTotal;
+                    });
+
+                    const projRevenue = project.project_items?.reduce((sum, item) =>
+                        sum + (parseFloat(item.area) || 0) * (parseFloat(item.price_per_m2) || 0), 0) || 0;
+                    totalCosts += projRevenue * 0.11;
+                    project.extra_fees?.forEach(fee => {
+                        totalCosts += parseFloat(fee.amount) || 0;
+                    });
+
+                    // Calculate owner payments
+                    const ownerPaid = project.owner_payments?.reduce((sum, p) =>
+                        sum + (parseFloat(p.amount) || 0), 0) || 0;
+                    totalOwnerPaid += ownerPaid;
+                    totalOwnerOwed += (projRevenue - ownerPaid);
+                });
+
+                // Calculate supplier payments from suppliers data
+                suppliers.forEach(supplier => {
+                    const paid = supplier.supplier_payments?.reduce((sum, p) =>
+                        sum + (parseFloat(p.amount) || 0), 0) || 0;
+                    totalMatPaid += paid;
+                });
+                totalMatOwed = totalMatCost - totalMatPaid;
+
+                return {
+                    totalRevenue, totalArea, totalCosts,
+                    totalProfit: totalRevenue - totalCosts,
+                    profitMargin: totalRevenue > 0 ? ((totalRevenue - totalCosts) / totalRevenue * 100) : 0,
+                    totalProjects: projects.length,
+                    activeProjects: projects.filter(p => p.status === 'active').length,
+                    inProgressProjects: projects.filter(p => p.status === 'in_progress').length,
+                    completedProjects: projects.filter(p => p.status === 'completed').length,
+                    totalSubcontractors: subcontractors.length,
+                    totalSuppliers: suppliers.length,
+                    totalSubPaid, totalSubOwed, totalMatCost, totalMatPaid, totalMatOwed,
+                    totalOwnerPaid, totalOwnerOwed
+                };
+            }, [projects, subcontractors, suppliers]);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+                    <nav className="bg-white shadow-lg sticky top-0 z-40">
+                        <div className="max-w-7xl mx-auto px-4">
+                            <div className="flex justify-between items-center py-4 flex-wrap gap-2">
+                                <h1 className="text-2xl font-bold text-blue-600">Future Office</h1>
+                                <div className="flex gap-2 flex-wrap">
+                                    {[
+                                        { view: 'dashboard', icon: '📊', label: 'Dashboard' },
+                                        { view: 'projects', icon: '📁', label: 'Projects' },
+                                        { view: 'subcontractors', icon: '👷', label: 'Subcontractors' },
+                                        { view: 'suppliers', icon: '🏪', label: 'Suppliers' }
+                                    ].map(item => (
+                                        <button key={item.view} onClick={() => setCurrentView(item.view)}
+                                            className={`px-4 py-2 rounded-lg font-semibold transition ${currentView === item.view ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}>
+                                            {item.icon} {item.label}
+                                        </button>
+                                    ))}
+                                    <button onClick={() => setCurrentView('new-project')}
+                                        className="px-4 py-2 rounded-lg font-semibold bg-green-600 text-white hover:bg-green-700 transition">
+                                        ➕ New Project
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {message.text && (
+                        <div className="max-w-7xl mx-auto mt-4 px-4">
+                            <div className={`p-4 rounded-lg font-semibold ${message.type === 'error' ? 'bg-red-100 text-red-700 border-2 border-red-500' : 'bg-green-100 text-green-700 border-2 border-green-500'
+                                }`}>{message.text}</div>
+                        </div>
+                    )}
+
+                    {loading && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white p-8 rounded-lg">
+                                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+                                <p className="mt-4 text-gray-700 font-semibold">Loading...</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="max-w-7xl mx-auto p-4 md:p-8">
+                        {currentView === 'dashboard' && <Dashboard metrics={dashboardMetrics} projects={projects} />}
+                        {currentView === 'projects' && <ProjectsList projects={projects} subcontractors={subcontractors} suppliers={suppliers} onRefresh={loadAllData} showMessage={showMessage} />}
+                        {currentView === 'subcontractors' && <SubcontractorsList subcontractors={subcontractors} onRefresh={loadSubcontractors} showMessage={showMessage} />}
+                        {currentView === 'suppliers' && <SuppliersList suppliers={suppliers} projects={projects} onRefresh={loadSuppliers} showMessage={showMessage} />}
+                        {currentView === 'new-project' && <NewProject onSuccess={() => { loadAllData(); setCurrentView('projects'); showMessage('Project created!'); }} showMessage={showMessage} subcontractors={subcontractors} />}
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // DASHBOARD
+        // ============================================
+        const Dashboard = ({ metrics, projects }) => (
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <MetricCard title="Total Revenue" value={`${formatCurrency(metrics.totalRevenue)} EGP`} icon="💰" color="blue" />
+                    <MetricCard title="Total Profit" value={`${formatCurrency(metrics.totalProfit)} EGP`} icon="📈" color="green" subtitle={`${metrics.profitMargin.toFixed(1)}% margin`} />
+                    <MetricCard title="Total Area" value={`${formatCurrency(metrics.totalArea)} m²`} icon="📏" color="purple" />
+                    <MetricCard title="Total Projects" value={metrics.totalProjects} icon="📁" color="orange" subtitle={`${metrics.completedProjects} completed`} />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <MetricCard title="Active" value={metrics.activeProjects} icon="🟢" color="green" />
+                    <MetricCard title="In Progress" value={metrics.inProgressProjects} icon="🔵" color="blue" />
+                    <MetricCard title="Completed" value={metrics.completedProjects} icon="✅" color="purple" />
+                </div>
+
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">👷 Subcontractor Payments</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Paid</p>
+                            <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalSubPaid)} EGP</p>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Outstanding</p>
+                            <p className="text-2xl font-bold text-red-600">{formatCurrency(metrics.totalSubOwed)} EGP</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Balance</p>
+                            <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.totalSubPaid + metrics.totalSubOwed)} EGP</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Subcontractors</p>
+                            <p className="text-2xl font-bold text-blue-600">{metrics.totalSubcontractors}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">🏪 Supplier Account Balances</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Material Cost</p>
+                            <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.totalMatCost)} EGP</p>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Paid</p>
+                            <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalMatPaid)} EGP</p>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Outstanding</p>
+                            <p className="text-2xl font-bold text-red-600">{formatCurrency(metrics.totalMatOwed)} EGP</p>
+                        </div>
+                        <div className="bg-orange-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Suppliers</p>
+                            <p className="text-2xl font-bold text-orange-600">{metrics.totalSuppliers}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">💰 Owner Payment Tracking</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Revenue</p>
+                            <p className="text-2xl font-bold text-blue-600">{formatCurrency(metrics.totalRevenue)} EGP</p>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Paid</p>
+                            <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalOwnerPaid)} EGP</p>
+                        </div>
+                        <div className="bg-orange-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Remaining</p>
+                            <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.totalOwnerOwed)} EGP</p>
+                        </div>
+                    </div>
+                    <div className="mt-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-gray-700">Overall Payment Progress</span>
+                            <span className="text-sm font-bold text-green-600">
+                                {metrics.totalRevenue > 0 ? ((metrics.totalOwnerPaid / metrics.totalRevenue * 100)).toFixed(1) : 0}%
+                            </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-6">
+                            <div
+                                className="bg-gradient-to-r from-green-500 to-green-600 h-6 rounded-full transition-all duration-500 ease-in-out"
+                                style={{ width: `${Math.min(metrics.totalRevenue > 0 ? (metrics.totalOwnerPaid / metrics.totalRevenue * 100) : 0, 100)}%` }}
+                            ></div>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>0 EGP</span>
+                            <span>{formatCurrency(metrics.totalRevenue)} EGP</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Projects</h2>
+                    <div className="space-y-4">
+                        {projects.slice(0, 5).map(project => <ProjectSummaryCard key={project.id} project={project} />)}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const MetricCard = ({ title, value, icon, color, subtitle }) => {
+            const colors = {
+                blue: 'from-blue-500 to-blue-600', green: 'from-green-500 to-green-600',
+                purple: 'from-purple-500 to-purple-600', orange: 'from-orange-500 to-orange-600', red: 'from-red-500 to-red-600'
+            };
+            return (
+                <div className={`bg-gradient-to-br ${colors[color]} rounded-lg shadow-lg p-6 text-white`}>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold opacity-90">{title}</h3>
+                        <span className="text-3xl">{icon}</span>
+                    </div>
+                    <p className="text-2xl font-bold">{value}</p>
+                    {subtitle && <p className="text-sm opacity-90 mt-1">{subtitle}</p>}
+                </div>
+            );
+        };
+
+        const ProjectSummaryCard = ({ project }) => {
+            const totalRevenue = project.project_items?.reduce((sum, item) =>
+                sum + (parseFloat(item.area) || 0) * (parseFloat(item.price_per_m2) || 0), 0) || 0;
+            const totalArea = project.project_items?.reduce((sum, item) => sum + (parseFloat(item.area) || 0), 0) || 0;
+            const ownerPaid = project.owner_payments?.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0) || 0;
+            const paymentPercentage = totalRevenue > 0 ? (ownerPaid / totalRevenue * 100) : 0;
+
+            const statusConfig = {
+                active: { bg: 'bg-green-100', text: 'text-green-700', label: 'Active' },
+                in_progress: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'In Progress' },
+                completed: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Completed' }
+            }[project.status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: project.status };
+
+            return (
+                <div className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-500 transition">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="font-bold text-lg text-gray-800">{project.name}</h3>
+                            <p className="text-sm text-gray-600">{project.client_name}</p>
+                            <p className="text-xs text-gray-500 mt-1">{formatDate(project.created_at)}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-sm text-gray-600">Revenue</p>
+                            <p className="text-lg font-bold text-blue-600">{formatCurrency(totalRevenue)} EGP</p>
+                            <p className="text-xs text-gray-600 mt-1">{formatCurrency(totalArea)} m²</p>
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs text-gray-600">Owner Payment Progress</span>
+                            <span className="text-xs font-semibold text-green-600">{paymentPercentage.toFixed(1)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                                className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${Math.min(paymentPercentage, 100)}%` }}
+                            ></div>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>{formatCurrency(ownerPaid)} EGP paid</span>
+                            <span>{formatCurrency(totalRevenue - ownerPaid)} EGP remaining</span>
+                        </div>
+                    </div>
+                    <div className="mt-2">
+                        <span className={`text-xs px-2 py-1 rounded ${statusConfig.bg} ${statusConfig.text}`}>{statusConfig.label}</span>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // PROJECTS LIST
+        // ============================================
+        const ProjectsList = ({ projects, subcontractors, suppliers, onRefresh, showMessage }) => {
+            const [selectedProject, setSelectedProject] = useState(null);
+
+            const updateStatus = async (id, status) => {
+                try {
+                    const { error } = await supabase.from('projects').update({ status }).eq('id', id);
+                    if (error) throw error;
+                    showMessage('Status updated!');
+                    onRefresh();
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+            const deleteProject = async (id, projectName) => {
+                // Confirmation dialog
+                const confirmMessage = `⚠️ WARNING: This will permanently delete the project "${projectName}" and ALL related data:
+        
+• All project items
+• All subcontractor assignments and payments
+• All material receipts and items
+• All extra fees
+
+This action CANNOT be undone!
+
+Type "DELETE" to confirm:`;
+
+                const userInput = prompt(confirmMessage);
+
+                if (userInput !== 'DELETE') {
+                    if (userInput !== null) { // User didn't click cancel
+                        showMessage('Delete cancelled - you must type DELETE exactly', 'error');
+                    }
+                    return;
+                }
+
+                try {
+                    const { error } = await supabase
+                        .from('projects')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) throw error;
+
+                    showMessage(`Project "${projectName}" deleted successfully!`);
+                    onRefresh();
+                    setSelectedProject(null); // Close details if it was open
+                } catch (error) {
+                    showMessage('Error deleting project: ' + error.message, 'error');
+                }
+            };
+            // ============================================
+            // END OF DELETE FUNCTION ⬆️
+            // ============================================
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">All Projects</h2>
+                    {projects.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No projects yet. Create your first project!</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {projects.map(project => (
+                                <div key={project.id}>
+                                    <div className="border-2 border-gray-200 rounded-lg p-4">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex-1 cursor-pointer" onClick={() => setSelectedProject(selectedProject?.id === project.id ? null : project)}>
+                                                <ProjectSummaryCard project={project} />
+                                            </div>
+                                            <div className="flex gap-2 items-start">
+                                                <select value={project.status} onChange={(e) => updateStatus(project.id, e.target.value)}
+                                                    className="px-3 py-1 border-2 rounded-lg text-sm">
+                                                    <option value="active">Active</option>
+                                                    <option value="in_progress">In Progress</option>
+                                                    <option value="completed">Completed</option>
+                                                </select>
+                                                <button
+                                                    onClick={() => deleteProject(project.id, project.name)}
+                                                    className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-semibold"
+                                                    title="Delete Project">
+                                                    🗑️ Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {selectedProject?.id === project.id && (
+                                        <ProjectDetails project={project} subcontractors={subcontractors} suppliers={suppliers} onRefresh={onRefresh} showMessage={showMessage} />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ============================================
+        // PROJECT DETAILS
+        // ============================================
+        const ProjectDetails = ({ project, subcontractors, suppliers, onRefresh, showMessage }) => {
+            const [showModal, setShowModal] = useState(null);
+
+            const addRecordPayment = async (assignmentId, amount, date, notes) => {
+                try {
+                    const { error } = await supabase.from('subcontractor_payments').insert([{
+                        assignment_id: assignmentId, amount, payment_date: date || new Date().toISOString(), notes
+                    }]);
+                    if (error) throw error;
+                    showMessage('Payment recorded!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const addMaterialReceipt = async (receiptData) => {
+                try {
+                    const { data: receipt, error: receiptError } = await supabase
+                        .from('material_receipts')
+                        .insert([{
+                            project_id: project.id,
+                            supplier_id: receiptData.supplier_id,
+                            receipt_number: receiptData.receipt_number,
+                            receipt_date: receiptData.receipt_date || new Date().toISOString(),
+                            total_amount: receiptData.total_amount,
+                            notes: receiptData.notes
+                        }])
+                        .select()
+                        .single();
+
+                    if (receiptError) throw receiptError;
+
+                    if (receiptData.items && receiptData.items.length > 0) {
+                        const items = receiptData.items.map(item => ({
+                            receipt_id: receipt.id,
+                            material_name: item.material_name,
+                            quantity: item.quantity,
+                            unit: item.unit,
+                            price_per_unit: item.price_per_unit,
+                            total_price: item.total_price
+                        }));
+                        const { error: itemsError } = await supabase.from('material_receipt_items').insert(items);
+                        if (itemsError) throw itemsError;
+                    }
+
+                    showMessage('Receipt added!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const addOwnerPayment = async (projectId, amount, date, notes) => {
+                try {
+                    const { error } = await supabase
+                        .from('owner_payments')
+                        .insert([{
+                            project_id: projectId,
+                            amount: amount,
+                            payment_date: date,
+                            notes: notes
+                        }]);
+
+                    if (error) throw error;
+
+                    showMessage('Owner payment recorded!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const totals = useMemo(() => {
+                let revenue = 0, materialCost = 0, laborCost = 0, area = 0;
+
+                project.project_items?.forEach(item => {
+                    const itemArea = parseFloat(item.area) || 0;
+                    area += itemArea;
+                    revenue += itemArea * (parseFloat(item.price_per_m2) || 0);
+                    materialCost += itemArea * (parseFloat(item.material_cost_per_m2) || 0);
+
+                    item.subcontractor_assignments?.forEach(assignment => {
+                        laborCost += itemArea * (parseFloat(assignment.price_per_m2) || 0);
+                    });
+                });
+
+                const receiptsCost = project.material_receipts?.reduce((sum, r) => sum + (parseFloat(r.total_amount) || 0), 0) || 0;
+                const legalFees = revenue * 0.11;
+                const extraFeesTotal = project.extra_fees?.reduce((sum, fee) => sum + (parseFloat(fee.amount) || 0), 0) || 0;
+                const totalCosts = materialCost + laborCost + legalFees + extraFeesTotal + receiptsCost;
+                const profit = revenue - totalCosts;
+
+                return { revenue, materialCost, laborCost, legalFees, extraFeesTotal, receiptsCost, totalCosts, profit, area };
+            }, [project]);
+
+            const materialsSummary = useMemo(() => {
+                const byMaterialAndUnit = {};
+                let totalItemsCount = 0;
+                let totalReceiptsValue = 0;
+
+                (project.material_receipts || []).forEach(receipt => {
+                    totalReceiptsValue += parseFloat(receipt.total_amount) || 0;
+                    (receipt.material_receipt_items || []).forEach(item => {
+                        totalItemsCount += 1;
+                        const name = item.material_name || 'Unknown';
+                        const unit = item.unit || '';
+                        const key = `${name}__${unit}`;
+                        const qty = parseFloat(item.quantity) || 0;
+                        const total = parseFloat(item.total_price) || 0;
+                        if (!byMaterialAndUnit[key]) {
+                            byMaterialAndUnit[key] = { material_name: name, unit, quantity: 0, total_value: 0 };
+                        }
+                        byMaterialAndUnit[key].quantity += qty;
+                        byMaterialAndUnit[key].total_value += total;
+                    });
+                });
+
+                const rows = Object.values(byMaterialAndUnit).sort((a, b) => a.material_name.localeCompare(b.material_name));
+                const totalsByUnit = rows.reduce((acc, row) => {
+                    acc[row.unit] = (acc[row.unit] || 0) + row.quantity;
+                    return acc;
+                }, {});
+
+                return { rows, totalItemsCount, totalReceiptsValue, totalsByUnit };
+            }, [project]);
+
+            return (
+                <div className="mt-4 bg-gray-50 border-2 border-blue-200 rounded-lg p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">Project Details</h3>
+                        <button onClick={() => setShowModal({ type: 'addReceipt' })}
+                            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-semibold">
+                            ➕ Add Material Receipt
+                        </button>
+                    </div>
+
+                    {/* Project Items */}
+                    <div className="mb-6">
+                        <h4 className="font-semibold text-gray-700 mb-3">Items & Subcontractors</h4>
+                        <div className="space-y-3">
+                            {project.project_items?.map(item => {
+                                const itemArea = parseFloat(item.area) || 0;
+                                const itemPrice = parseFloat(item.price_per_m2) || 0;
+
+                                return (
+                                    <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                                        <div className="flex justify-between mb-2">
+                                            <div>
+                                                <h5 className="font-semibold text-gray-800">{item.item_name}</h5>
+                                                <p className="text-sm text-gray-600">
+                                                    {formatCurrency(itemArea)} m² × {formatCurrency(itemPrice)} EGP/m²
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-600">Revenue</p>
+                                                <p className="font-bold text-blue-600">{formatCurrency(itemArea * itemPrice)} EGP</p>
+                                            </div>
+                                        </div>
+
+                                        {item.subcontractor_assignments?.map(assignment => {
+                                            const subPrice = parseFloat(assignment.price_per_m2) || 0;
+                                            const totalCost = itemArea * subPrice;
+                                            const paid = assignment.subcontractor_payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+
+                                            return (
+                                                <div key={assignment.id} className="mt-3 pt-3 border-t border-gray-200">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-700">👷 {assignment.subcontractors?.name}</p>
+                                                            <p className="text-xs text-gray-600">
+                                                                {formatCurrency(itemArea)} m² × {formatCurrency(subPrice)} EGP/m² = {formatCurrency(totalCost)} EGP
+                                                            </p>
+                                                            <div className="mt-2">
+                                                                <p className="text-xs font-semibold text-green-600">Paid: {formatCurrency(paid)} EGP</p>
+                                                                <p className="text-xs font-semibold text-red-600">Owed: {formatCurrency(totalCost - paid)} EGP</p>
+                                                            </div>
+
+                                                            {assignment.subcontractor_payments && assignment.subcontractor_payments.length > 0 && (
+                                                                <div className="mt-2">
+                                                                    <p className="text-xs font-semibold text-gray-700 mb-1">Payment History:</p>
+                                                                    <div className="space-y-1">
+                                                                        {assignment.subcontractor_payments.map(payment => (
+                                                                            <div key={payment.id} className="text-xs bg-green-50 p-1 rounded">
+                                                                                📅 {formatDate(payment.payment_date)} - {formatCurrency(payment.amount)} EGP
+                                                                                {payment.notes && <span className="text-gray-600"> ({payment.notes})</span>}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setShowModal({
+                                                                type: 'subPayment',
+                                                                assignment,
+                                                                item,
+                                                                totalCost,
+                                                                paid,
+                                                                owed: totalCost - paid
+                                                            })}
+                                                            className="text-xs bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                                                            💰 Record Payment
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Material Receipts */}
+                    {project.material_receipts && project.material_receipts.length > 0 && (
+                        <div className="mb-6">
+                            <h4 className="font-semibold text-gray-700 mb-3">Material Receipts (Buy Now, Pay Later)</h4>
+                            <div className="space-y-3">
+                                {project.material_receipts.map(receipt => {
+                                    const totalAmount = parseFloat(receipt.total_amount) || 0;
+
+                                    return (
+                                        <div key={receipt.id} className="bg-white rounded-lg p-4 border border-purple-200">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">
+                                                        🏪 {receipt.material_suppliers?.name || 'Unknown Supplier'}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600">Receipt #{receipt.receipt_number}</p>
+                                                    <p className="text-xs text-gray-500">📅 {formatDate(receipt.receipt_date)}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm text-gray-600">Receipt Total</p>
+                                                    <p className="font-bold text-purple-600">{formatCurrency(totalAmount)} EGP</p>
+                                                </div>
+                                            </div>
+
+                                            {receipt.material_receipt_items && receipt.material_receipt_items.length > 0 && (
+                                                <div className="bg-gray-50 p-3 rounded">
+                                                    <p className="text-xs font-semibold text-gray-700 mb-2">Items:</p>
+                                                    {receipt.material_receipt_items.map(item => (
+                                                        <div key={item.id} className="text-xs text-gray-600 mb-1">
+                                                            • {item.material_name}: {formatCurrency(item.quantity)} {item.unit} × {formatCurrency(item.price_per_unit)} EGP = {formatCurrency(item.total_price)} EGP
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="mt-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
+                                <p className="text-sm text-yellow-800">
+                                    💡 <strong>Note:</strong> Payment for these receipts is tracked in the Supplier's account. Go to <strong>Suppliers</strong> section to make payments.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Materials Imported Summary */}
+                    <div className="mb-6">
+                        <h4 className="font-semibold text-gray-700 mb-3">📦 Materials Imported Summary</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                                <p className="text-sm text-gray-600">Total Receipt Items</p>
+                                <p className="text-xl font-bold text-blue-600">{materialsSummary.totalItemsCount}</p>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-lg">
+                                <p className="text-sm text-gray-600">Total Receipts Value</p>
+                                <p className="text-xl font-bold text-purple-600">{formatCurrency(materialsSummary.totalReceiptsValue)} EGP</p>
+                            </div>
+                            <div className="bg-green-50 p-3 rounded-lg">
+                                <p className="text-sm text-gray-600">Totals by Unit</p>
+                                <div className="text-sm text-green-700">
+                                    {Object.keys(materialsSummary.totalsByUnit).length === 0 ? (
+                                        <span>—</span>
+                                    ) : (
+                                        Object.entries(materialsSummary.totalsByUnit).map(([unit, qty]) => (
+                                            <div key={unit}>{formatCurrency(qty)} {unit}</div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {materialsSummary.rows.length > 0 ? (
+                            <div className="bg-white rounded-lg border border-gray-200">
+                                <div className="grid grid-cols-6 gap-2 p-3 text-xs font-semibold text-gray-600 border-b">
+                                    <div className="col-span-3">Material</div>
+                                    <div className="col-span-1 text-right">Quantity</div>
+                                    <div className="col-span-1">Unit</div>
+                                    <div className="col-span-1 text-right">Value (EGP)</div>
+                                </div>
+                                <div className="divide-y">
+                                    {materialsSummary.rows.map((row, idx) => (
+                                        <div key={idx} className="grid grid-cols-6 gap-2 p-3 text-sm items-center">
+                                            <div className="col-span-3 text-gray-800">{row.material_name}</div>
+                                            <div className="col-span-1 text-right">{formatCurrency(row.quantity)}</div>
+                                            <div className="col-span-1">{row.unit}</div>
+                                            <div className="col-span-1 text-right text-purple-700 font-semibold">{formatCurrency(row.total_value)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-gray-500">No material items recorded yet.</div>
+                        )}
+                    </div>
+
+                    {/* Owner Payment Tracking */}
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="font-semibold text-gray-700">💰 Owner Payment Tracking</h4>
+                            <button onClick={() => setShowModal({ type: 'ownerPayment', project })}
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold">
+                                ➕ Record Owner Payment
+                            </button>
+                        </div>
+                        {(() => {
+                            const totalRevenue = totals.revenue;
+                            const ownerPayments = project.owner_payments || [];
+                            const totalPaid = ownerPayments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+                            const remaining = totalRevenue - totalPaid;
+                            const percentagePaid = totalRevenue > 0 ? (totalPaid / totalRevenue * 100) : 0;
+
+                            return (
+                                <div className="bg-white rounded-lg p-4 border border-green-200">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                        <div className="bg-blue-50 p-3 rounded-lg">
+                                            <p className="text-sm text-gray-600">Total Revenue</p>
+                                            <p className="text-xl font-bold text-blue-600">{formatCurrency(totalRevenue)} EGP</p>
+                                        </div>
+                                        <div className="bg-green-50 p-3 rounded-lg">
+                                            <p className="text-sm text-gray-600">Paid to Owner</p>
+                                            <p className="text-xl font-bold text-green-600">{formatCurrency(totalPaid)} EGP</p>
+                                        </div>
+                                        <div className="bg-orange-50 p-3 rounded-lg">
+                                            <p className="text-sm text-gray-600">Remaining</p>
+                                            <p className="text-xl font-bold text-orange-600">{formatCurrency(remaining)} EGP</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="mb-4">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-sm font-semibold text-gray-700">Payment Progress</span>
+                                            <span className="text-sm font-bold text-green-600">{percentagePaid.toFixed(1)}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-6">
+                                            <div
+                                                className="bg-gradient-to-r from-green-500 to-green-600 h-6 rounded-full transition-all duration-500 ease-in-out"
+                                                style={{ width: `${Math.min(percentagePaid, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                            <span>0 EGP</span>
+                                            <span>{formatCurrency(totalRevenue)} EGP</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment History */}
+                                    {ownerPayments.length > 0 && (
+                                        <div>
+                                            <h5 className="font-semibold text-gray-700 mb-2">Payment History:</h5>
+                                            <div className="space-y-2">
+                                                {ownerPayments
+                                                    .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date))
+                                                    .map((payment, index) => (
+                                                        <div key={payment.id} className="bg-green-50 p-3 rounded-lg border border-green-200">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <p className="text-sm font-semibold text-green-800">
+                                                                        Payment #{ownerPayments.length - index}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-600">
+                                                                        📅 {formatDate(payment.payment_date)}
+                                                                    </p>
+                                                                    {payment.notes && (
+                                                                        <p className="text-xs text-gray-600 mt-1">
+                                                                            📝 {payment.notes}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-lg font-bold text-green-600">
+                                                                        {formatCurrency(payment.amount)} EGP
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    {/* Financial Summary */}
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <h4 className="font-semibold text-gray-700 mb-3">Financial Summary</h4>
+                        <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                                <span>Total Revenue:</span>
+                                <span className="font-semibold text-blue-600">{formatCurrency(totals.revenue)} EGP</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Material Cost (per m²):</span>
+                                <span>{formatCurrency(totals.materialCost)} EGP</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Labor Cost (Subcontractors):</span>
+                                <span>{formatCurrency(totals.laborCost)} EGP</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Material Receipts:</span>
+                                <span>{formatCurrency(totals.receiptsCost)} EGP</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Legal Fees (11%):</span>
+                                <span>{formatCurrency(totals.legalFees)} EGP</span>
+                            </div>
+                            {totals.extraFeesTotal > 0 && (
+                                <div className="flex justify-between">
+                                    <span>Extra Fees:</span>
+                                    <span>{formatCurrency(totals.extraFeesTotal)} EGP</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between pt-2 border-t-2 font-bold">
+                                <span>Total Costs:</span>
+                                <span className="text-red-600">{formatCurrency(totals.totalCosts)} EGP</span>
+                            </div>
+                            <div className="flex justify-between pt-2 border-t-2 font-bold text-lg">
+                                <span>Net Profit:</span>
+                                <span className="text-green-600">{formatCurrency(totals.profit)} EGP</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Modals */}
+                    {showModal?.type === 'subPayment' && (
+                        <SubcontractorPaymentModal data={showModal} onClose={() => setShowModal(null)}
+                            onSubmit={(amount, date, notes) => addRecordPayment(showModal.assignment.id, amount, date, notes)} />
+                    )}
+                    {showModal?.type === 'addReceipt' && (
+                        <AddMaterialReceiptModal project={project} suppliers={suppliers} onClose={() => setShowModal(null)}
+                            onSubmit={addMaterialReceipt} />
+                    )}
+                    {showModal?.type === 'ownerPayment' && (
+                        <OwnerPaymentModal project={showModal.project} onClose={() => setShowModal(null)}
+                            onSubmit={(amount, date, notes) => addOwnerPayment(showModal.project.id, amount, date, notes)} />
+                    )}
+                </div>
+            );
+        };
+
+        // ============================================
+        // SUBCONTRACTOR PAYMENT MODAL
+        // ============================================
+        const SubcontractorPaymentModal = ({ data, onClose, onSubmit }) => {
+            const [amount, setAmount] = useState('');
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [notes, setNotes] = useState('');
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">Record Subcontractor Payment</h3>
+                        <div className="mb-4 space-y-2 bg-blue-50 p-3 rounded">
+                            <p className="text-sm"><strong>Subcontractor:</strong> {data.assignment.subcontractors?.name}</p>
+                            <p className="text-sm"><strong>Item:</strong> {data.item?.item_name}</p>
+                            <p className="text-sm"><strong>Total Cost:</strong> {formatCurrency(data.totalCost)} EGP</p>
+                            <p className="text-sm"><strong>Already Paid:</strong> {formatCurrency(data.paid)} EGP</p>
+                            <p className="text-sm text-red-600 font-bold"><strong>Remaining:</strong> {formatCurrency(data.owed)} EGP</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Payment Amount (EGP)</label>
+                                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Enter amount" step="0.01" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Payment Date</label>
+                                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Notes (optional)</label>
+                                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Payment notes" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => setAmount(data.owed.toString())}
+                                className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                                Pay Full Amount
+                            </button>
+                            <button onClick={() => {
+                                if (amount && parseFloat(amount) > 0) {
+                                    onSubmit(amount, date, notes);
+                                } else {
+                                    alert('Please enter a valid amount');
+                                }
+                            }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                                Record Payment
+                            </button>
+                            <button onClick={onClose} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // OWNER PAYMENT MODAL
+        // ============================================
+        const OwnerPaymentModal = ({ project, onClose, onSubmit }) => {
+            const [amount, setAmount] = useState('');
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [notes, setNotes] = useState('');
+
+            // Calculate project totals for reference
+            const projectTotals = useMemo(() => {
+                let revenue = 0;
+                project.project_items?.forEach(item => {
+                    const itemArea = parseFloat(item.area) || 0;
+                    revenue += itemArea * (parseFloat(item.price_per_m2) || 0);
+                });
+
+                const ownerPayments = project.owner_payments || [];
+                const totalPaid = ownerPayments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+                const remaining = revenue - totalPaid;
+
+                return { revenue, totalPaid, remaining };
+            }, [project]);
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">💰 Record Owner Payment</h3>
+                        <div className="mb-4 space-y-2 bg-green-50 p-3 rounded">
+                            <p className="text-sm"><strong>Project:</strong> {project.name}</p>
+                            <p className="text-sm"><strong>Total Revenue:</strong> {formatCurrency(projectTotals.revenue)} EGP</p>
+                            <p className="text-sm"><strong>Already Paid:</strong> {formatCurrency(projectTotals.totalPaid)} EGP</p>
+                            <p className="text-sm text-orange-600 font-bold"><strong>Remaining:</strong> {formatCurrency(projectTotals.remaining)} EGP</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Payment Amount (EGP)</label>
+                                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Enter amount" step="0.01" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Payment Date</label>
+                                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Notes (optional)</label>
+                                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Payment notes" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => setAmount(projectTotals.remaining.toString())}
+                                className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                                Pay Full Remaining
+                            </button>
+                            <button onClick={() => {
+                                if (amount && parseFloat(amount) > 0) {
+                                    onSubmit(amount, date, notes);
+                                } else {
+                                    alert('Please enter a valid amount');
+                                }
+                            }} className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                Record Payment
+                            </button>
+                            <button onClick={onClose} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // ADD MATERIAL RECEIPT MODAL
+        // ============================================
+        const AddMaterialReceiptModal = ({ project, suppliers, onClose, onSubmit }) => {
+            const [formData, setFormData] = useState({
+                supplier_id: '',
+                receipt_number: '',
+                receipt_date: new Date().toISOString().split('T')[0],
+                total_amount: '',
+                notes: ''
+            });
+            const [items, setItems] = useState([{ material_name: '', quantity: '', unit: 'm²', price_per_unit: '', total_price: 0 }]);
+
+            const updateItem = (index, field, value) => {
+                const newItems = [...items];
+                newItems[index][field] = value;
+                if (field === 'quantity' || field === 'price_per_unit') {
+                    const qty = parseFloat(newItems[index].quantity) || 0;
+                    const price = parseFloat(newItems[index].price_per_unit) || 0;
+                    newItems[index].total_price = qty * price;
+                }
+                setItems(newItems);
+
+                const total = newItems.reduce((sum, item) => sum + (parseFloat(item.total_price) || 0), 0);
+                setFormData({ ...formData, total_amount: total.toString() });
+            };
+
+            const addItem = () => {
+                setItems([...items, { material_name: '', quantity: '', unit: 'm²', price_per_unit: '', total_price: 0 }]);
+            };
+
+            const removeItem = (index) => {
+                const newItems = items.filter((_, i) => i !== index);
+                setItems(newItems);
+                const total = newItems.reduce((sum, item) => sum + (parseFloat(item.total_price) || 0), 0);
+                setFormData({ ...formData, total_amount: total.toString() });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-xl font-bold mb-4">Add Material Receipt (Buy Now, Pay Later)</h3>
+                        <div className="space-y-4 mb-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Supplier *</label>
+                                    <select value={formData.supplier_id} onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                                        className="w-full px-4 py-2 border-2 rounded-lg">
+                                        <option value="">Select supplier</option>
+                                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Receipt Number</label>
+                                    <input type="text" value={formData.receipt_number} onChange={(e) => setFormData({ ...formData, receipt_number: e.target.value })}
+                                        className="w-full px-4 py-2 border-2 rounded-lg" placeholder="e.g., REC-001" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Receipt Date</label>
+                                    <input type="date" value={formData.receipt_date} onChange={(e) => setFormData({ ...formData, receipt_date: e.target.value })}
+                                        className="w-full px-4 py-2 border-2 rounded-lg" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Total Amount (Auto-calculated)</label>
+                                    <input type="number" value={formData.total_amount} readOnly
+                                        className="w-full px-4 py-2 border-2 rounded-lg bg-gray-100" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Notes</label>
+                                <input type="text" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Additional notes" />
+                            </div>
+                        </div>
+
+                        <div className="mb-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-semibold">Receipt Items</h4>
+                                <button onClick={addItem} className="bg-blue-500 text-white px-3 py-1 rounded text-sm">➕ Add Item</button>
+                            </div>
+                            <div className="space-y-2">
+                                {items.map((item, index) => (
+                                    <div key={index} className="grid grid-cols-6 gap-2 items-end">
+                                        <div className="col-span-2">
+                                            <label className="block text-xs mb-1">Material Name</label>
+                                            <input type="text" value={item.material_name} onChange={(e) => updateItem(index, 'material_name', e.target.value)}
+                                                className="w-full px-2 py-1 border rounded text-sm" placeholder="e.g., Gypsum Board" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1">Quantity</label>
+                                            <input type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                                                className="w-full px-2 py-1 border rounded text-sm" step="0.01" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1">Unit</label>
+                                            <select value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)}
+                                                className="w-full px-2 py-1 border rounded text-sm">
+                                                <option value="m²">m²</option>
+                                                <option value="piece">piece</option>
+                                                <option value="kg">kg</option>
+                                                <option value="liter">liter</option>
+                                                <option value="box">box</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1">Price/Unit</label>
+                                            <input type="number" value={item.price_per_unit} onChange={(e) => updateItem(index, 'price_per_unit', e.target.value)}
+                                                className="w-full px-2 py-1 border rounded text-sm" step="0.01" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1">Total</label>
+                                            <div className="flex gap-1">
+                                                <input type="number" value={item.total_price} readOnly
+                                                    className="w-full px-2 py-1 border rounded text-sm bg-gray-100" />
+                                                <button onClick={() => removeItem(index)} className="bg-red-500 text-white px-2 py-1 rounded text-sm">🗑️</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 mb-4">
+                            <p className="text-sm text-yellow-800">
+                                💡 This receipt will be added to the supplier's account. You can pay them later from the Suppliers section.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button onClick={() => {
+                                if (!formData.supplier_id || items.some(i => !i.material_name || !i.quantity || !i.price_per_unit)) {
+                                    alert('Please fill in all required fields');
+                                    return;
+                                }
+                                onSubmit({ ...formData, items });
+                            }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                                Add Receipt
+                            </button>
+                            <button onClick={onClose} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // SUBCONTRACTORS LIST (SAME AS BEFORE)
+        // ============================================
+        const SubcontractorsList = ({ subcontractors, onRefresh, showMessage }) => {
+            const [showModal, setShowModal] = useState(null);
+            const [selectedSub, setSelectedSub] = useState(null);
+
+            const addSubcontractor = async (data) => {
+                try {
+                    const { error } = await supabase.from('subcontractors').insert([data]);
+                    if (error) throw error;
+                    showMessage('Subcontractor added!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const updateSubcontractor = async (id, data) => {
+                try {
+                    const { error } = await supabase.from('subcontractors').update(data).eq('id', id);
+                    if (error) throw error;
+                    showMessage('Subcontractor updated!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const deleteSubcontractor = async (id) => {
+                if (!confirm('Delete this subcontractor?')) return;
+                try {
+                    const { error } = await supabase.from('subcontractors').delete().eq('id', id);
+                    if (error) throw error;
+                    showMessage('Subcontractor deleted!');
+                    onRefresh();
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-gray-800">Subcontractors</h2>
+                        <button onClick={() => setShowModal({ type: 'add' })}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold">
+                            ➕ Add Subcontractor
+                        </button>
+                    </div>
+
+                    {subcontractors.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No subcontractors yet.</p>
+                    ) : (
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {subcontractors.map(sub => {
+                                const totalEarned = sub.subcontractor_assignments?.reduce((sum, a) => {
+                                    const area = parseFloat(a.project_items?.area) || 0;
+                                    const price = parseFloat(a.price_per_m2) || 0;
+                                    return sum + (area * price);
+                                }, 0) || 0;
+                                const totalPaid = sub.subcontractor_assignments?.reduce((sum, a) =>
+                                    sum + (a.subcontractor_payments?.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0) || 0), 0) || 0;
+
+                                return (
+                                    <div key={sub.id} className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-500 transition">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1 cursor-pointer" onClick={() => setSelectedSub(selectedSub?.id === sub.id ? null : sub)}>
+                                                <h3 className="font-bold text-lg">👷 {sub.name}</h3>
+                                                <p className="text-sm text-gray-600">{sub.specialty}</p>
+                                                {sub.phone && <p className="text-xs text-gray-500">📞 {sub.phone}</p>}
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-600">Total Balance</p>
+                                                <p className="font-bold text-green-600">{formatCurrency(totalEarned)} EGP</p>
+                                                <div className="flex gap-1 mt-2">
+                                                    <button onClick={() => setShowModal({ type: 'edit', data: sub })}
+                                                        className="text-xs bg-blue-500 text-white px-2 py-1 rounded">✏️</button>
+                                                    <button onClick={() => deleteSubcontractor(sub.id)}
+                                                        className="text-xs bg-red-500 text-white px-2 py-1 rounded">🗑️</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div className="bg-green-50 p-2 rounded">
+                                                <p className="text-xs text-gray-600">Paid</p>
+                                                <p className="font-semibold text-green-700">{formatCurrency(totalPaid)} EGP</p>
+                                            </div>
+                                            <div className="bg-red-50 p-2 rounded">
+                                                <p className="text-xs text-gray-600">Owed</p>
+                                                <p className="font-semibold text-red-700">{formatCurrency(totalEarned - totalPaid)} EGP</p>
+                                            </div>
+                                        </div>
+
+                                        {selectedSub?.id === sub.id && (
+                                            <div className="mt-4 pt-4 border-t">
+                                                <h4 className="font-semibold text-sm mb-2">Project History</h4>
+                                                {sub.subcontractor_assignments?.map(assignment => {
+                                                    const area = parseFloat(assignment.project_items?.area) || 0;
+                                                    const price = parseFloat(assignment.price_per_m2) || 0;
+                                                    const total = area * price;
+                                                    const paid = assignment.subcontractor_payments?.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0) || 0;
+
+                                                    return (
+                                                        <div key={assignment.id} className="text-xs bg-gray-50 p-2 rounded mb-2">
+                                                            <p className="font-semibold">{assignment.project_items?.projects?.name}</p>
+                                                            <p className="text-gray-600">{assignment.project_items?.item_name}</p>
+                                                            <p className="text-gray-600">{formatCurrency(area)} m² × {formatCurrency(price)} = {formatCurrency(total)} EGP</p>
+                                                            <p className="text-green-600">Paid: {formatCurrency(paid)} EGP</p>
+                                                            <p className="text-red-600">Owed: {formatCurrency(total - paid)} EGP</p>
+
+                                                            {assignment.subcontractor_payments && assignment.subcontractor_payments.length > 0 && (
+                                                                <div className="mt-1 pl-2 border-l-2 border-green-300">
+                                                                    <p className="font-semibold mb-1">Payments:</p>
+                                                                    {assignment.subcontractor_payments.map(payment => (
+                                                                        <p key={payment.id} className="text-green-700">
+                                                                            📅 {formatDate(payment.payment_date)} - {formatCurrency(payment.amount)} EGP
+                                                                            {payment.notes && ` (${payment.notes})`}
+                                                                        </p>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {showModal && (
+                        <SubcontractorModal
+                            onClose={() => setShowModal(null)}
+                            onSubmit={(data) => showModal.type === 'add' ? addSubcontractor(data) : updateSubcontractor(showModal.data.id, data)}
+                            title={showModal.type === 'add' ? 'Add Subcontractor' : 'Edit Subcontractor'}
+                            initialData={showModal.data}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const SubcontractorModal = ({ onClose, onSubmit, title, initialData }) => {
+            const [formData, setFormData] = useState({
+                name: initialData?.name || '',
+                phone: initialData?.phone || '',
+                specialty: initialData?.specialty || '',
+                notes: initialData?.notes || ''
+            });
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">{title}</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Name *</label>
+                                <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Phone</label>
+                                <input type="text" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Specialty</label>
+                                <input type="text" value={formData.specialty} onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="e.g., Ceiling Installation" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Notes</label>
+                                <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" rows="3" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => formData.name.trim() ? onSubmit(formData) : alert('Name required')}
+                                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold">
+                                {initialData ? 'Update' : 'Add'}
+                            </button>
+                            <button onClick={onClose} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        // ============================================
+        // SUPPLIERS LIST
+        // ============================================
+        const SuppliersList = ({ suppliers, projects, onRefresh, showMessage }) => {
+            const [showModal, setShowModal] = useState(null);
+            const [selectedSupplier, setSelectedSupplier] = useState(null);
+
+            const addSupplier = async (data) => {
+                try {
+                    const { error } = await supabase.from('material_suppliers').insert([data]);
+                    if (error) throw error;
+                    showMessage('Supplier added!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const updateSupplier = async (id, data) => {
+                try {
+                    const { error } = await supabase.from('material_suppliers').update(data).eq('id', id);
+                    if (error) throw error;
+                    showMessage('Supplier updated!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const deleteSupplier = async (id) => {
+                if (!confirm('Delete this supplier?')) return;
+                try {
+                    const { error } = await supabase.from('material_suppliers').delete().eq('id', id);
+                    if (error) throw error;
+                    showMessage('Supplier deleted!');
+                    onRefresh();
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            const recordPayment = async (supplierId, amount, date, notes) => {
+                try {
+                    const { error } = await supabase.from('supplier_payments').insert([{
+                        supplier_id: supplierId,
+                        amount,
+                        payment_date: date || new Date().toISOString(),
+                        notes
+                    }]);
+                    if (error) throw error;
+                    showMessage('Payment recorded!');
+                    onRefresh();
+                    setShowModal(null);
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                        <h2 className="text-2xl font-bold text-gray-800">Material Suppliers</h2>
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowModal({ type: 'add' })}
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold">
+                                ➕ Add Supplier
+                            </button>
+                        </div>
+                    </div>
+
+                    {suppliers.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No suppliers yet.</p>
+                    ) : (
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {suppliers.map(supplier => {
+                                const totalCost = supplier.material_receipts?.reduce((sum, r) => sum + (parseFloat(r.total_amount) || 0), 0) || 0;
+                                const totalPaid = supplier.supplier_payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+                                const balance = totalCost - totalPaid;
+
+                                return (
+                                    <div key={supplier.id} className="border-2 border-gray-200 rounded-lg p-4 hover:border-purple-500 transition">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1 cursor-pointer" onClick={() => setSelectedSupplier(selectedSupplier?.id === supplier.id ? null : supplier)}>
+                                                <h3 className="font-bold text-lg">🏪 {supplier.name}</h3>
+                                                {supplier.phone && <p className="text-xs text-gray-500">📞 {supplier.phone}</p>}
+                                                {supplier.email && <p className="text-xs text-gray-500">📧 {supplier.email}</p>}
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-600">Account Balance</p>
+                                                <p className={`font-bold text-lg ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                    {balance > 0 ? '-' : ''}{formatCurrency(Math.abs(balance))} EGP
+                                                </p>
+                                                <div className="flex gap-1 mt-2">
+                                                    <button onClick={() => setShowModal({ type: 'payment', supplier, totalCost, totalPaid, balance })}
+                                                        className="text-xs bg-purple-500 text-white px-2 py-1 rounded">💰 Pay</button>
+                                                    <button onClick={() => setShowModal({ type: 'edit', data: supplier })}
+                                                        className="text-xs bg-blue-500 text-white px-2 py-1 rounded">✏️</button>
+                                                    <button onClick={() => deleteSupplier(supplier.id)}
+                                                        className="text-xs bg-red-500 text-white px-2 py-1 rounded">🗑️</button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-2 text-sm mb-3">
+                                            <div className="bg-purple-50 p-2 rounded">
+                                                <p className="text-xs text-gray-600">Total Purchased</p>
+                                                <p className="font-semibold text-purple-700">{formatCurrency(totalCost)} EGP</p>
+                                            </div>
+                                            <div className="bg-green-50 p-2 rounded">
+                                                <p className="text-xs text-gray-600">Total Paid</p>
+                                                <p className="font-semibold text-green-700">{formatCurrency(totalPaid)} EGP</p>
+                                            </div>
+                                            <div className="bg-red-50 p-2 rounded">
+                                                <p className="text-xs text-gray-600">Owed</p>
+                                                <p className="font-semibold text-red-700">{formatCurrency(balance)} EGP</p>
+                                            </div>
+                                        </div>
+
+                                        {selectedSupplier?.id === supplier.id && (
+                                            <div className="mt-4 pt-4 border-t">
+                                                {/* Receipts */}
+                                                <h4 className="font-semibold text-sm mb-2">Receipt History</h4>
+                                                {supplier.material_receipts && supplier.material_receipts.length > 0 && (
+                                                    <div className="mb-4">
+                                                        {supplier.material_receipts.map(receipt => (
+                                                            <div key={receipt.id} className="text-xs bg-purple-50 p-2 rounded mb-2">
+                                                                <p className="font-semibold">{receipt.projects?.name}</p>
+                                                                <p className="text-gray-600">Receipt #{receipt.receipt_number} - {formatDate(receipt.receipt_date)}</p>
+                                                                <p className="text-purple-600">Amount: {formatCurrency(receipt.total_amount)} EGP</p>
+
+                                                                {receipt.material_receipt_items && receipt.material_receipt_items.length > 0 && (
+                                                                    <div className="mt-1 pl-2 border-l-2 border-purple-300">
+                                                                        <p className="font-semibold mb-1">Items:</p>
+                                                                        {receipt.material_receipt_items.map(item => (
+                                                                            <p key={item.id} className="text-gray-700">
+                                                                                • {item.material_name}: {formatCurrency(item.quantity)} {item.unit} × {formatCurrency(item.price_per_unit)} = {formatCurrency(item.total_price)} EGP
+                                                                            </p>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Payment History */}
+                                                <h4 className="font-semibold text-sm mb-2">Payment History</h4>
+                                                {supplier.supplier_payments && supplier.supplier_payments.length > 0 ? (
+                                                    <div className="space-y-1">
+                                                        {supplier.supplier_payments.map(payment => (
+                                                            <div key={payment.id} className="text-xs bg-green-50 p-2 rounded">
+                                                                <p className="text-green-700 font-semibold">
+                                                                    📅 {formatDate(payment.payment_date)} - {formatCurrency(payment.amount)} EGP
+                                                                </p>
+                                                                {payment.notes && <p className="text-gray-600">{payment.notes}</p>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-gray-500 italic">No payments yet</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Modals */}
+                    {showModal?.type === 'payment' && (
+                        <SupplierPaymentModal
+                            supplier={showModal.supplier}
+                            totalCost={showModal.totalCost}
+                            totalPaid={showModal.totalPaid}
+                            balance={showModal.balance}
+                            onClose={() => setShowModal(null)}
+                            onSubmit={(amount, date, notes) => recordPayment(showModal.supplier.id, amount, date, notes)}
+                        />
+                    )}
+
+                    {(showModal?.type === 'add' || showModal?.type === 'edit') && (
+                        <SupplierModal
+                            onClose={() => setShowModal(null)}
+                            onSubmit={(data) => showModal.type === 'add' ? addSupplier(data) : updateSupplier(showModal.data.id, data)}
+                            title={showModal.type === 'add' ? 'Add Supplier' : 'Edit Supplier'}
+                            initialData={showModal.data}
+                        />
+                    )}
+                </div>
+            );
+        };
+        // ============================================
+        // SUPPLIER PAYMENT MODAL
+        // ============================================
+        const SupplierPaymentModal = ({ supplier, totalCost, totalPaid, balance, onClose, onSubmit }) => {
+            const [amount, setAmount] = useState('');
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [notes, setNotes] = useState('');
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">Record Payment to Supplier</h3>
+                        <div className="mb-4 space-y-2 bg-purple-50 p-3 rounded">
+                            <p className="text-sm"><strong>Supplier:</strong> {supplier.name}</p>
+                            <p className="text-sm"><strong>Total Purchased:</strong> {formatCurrency(totalCost)} EGP</p>
+                            <p className="text-sm"><strong>Already Paid:</strong> {formatCurrency(totalPaid)} EGP</p>
+                            <p className="text-sm text-red-600 font-bold"><strong>Outstanding Balance:</strong> {formatCurrency(balance)} EGP</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Payment Amount (EGP)</label>
+                                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Enter amount" step="0.01" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Payment Date</label>
+                                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Notes (optional)</label>
+                                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="Payment notes" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => setAmount(balance.toString())}
+                                className="flex-1 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600">
+                                Pay Full Balance
+                            </button>
+                            <button onClick={() => {
+                                if (amount && parseFloat(amount) > 0) {
+                                    onSubmit(amount, date, notes);
+                                } else {
+                                    alert('Please enter a valid amount');
+                                }
+                            }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                                Record Payment
+                            </button>
+                            <button onClick={onClose} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // SUPPLIER MODAL (Add/Edit)
+        // ============================================
+        const SupplierModal = ({ onClose, onSubmit, title, initialData }) => {
+            const [formData, setFormData] = useState({
+                name: initialData?.name || '',
+                phone: initialData?.phone || '',
+                email: initialData?.email || '',
+                address: initialData?.address || '',
+                notes: initialData?.notes || ''
+            });
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">{title}</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Name *</label>
+                                <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Phone</label>
+                                <input type="text" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Email</label>
+                                <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Address</label>
+                                <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Notes</label>
+                                <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" rows="3" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => formData.name.trim() ? onSubmit(formData) : alert('Name required')}
+                                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold">
+                                {initialData ? 'Update' : 'Add'}
+                            </button>
+                            <button onClick={onClose} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================
+        // NEW PROJECT (Simplified)
+        // ============================================
+        const NewProject = ({ onSuccess, showMessage, subcontractors }) => {
+            const [project, setProject] = useState({ name: '', client_name: '', status: 'active', notes: '' });
+            const [items, setItems] = useState([]);
+
+            const addItem = () => {
+                setItems([...items, { item_name: '', area: '', price_per_m2: '', material_cost_per_m2: '', subcontractor_id: '', subcontractor_price_per_m2: '' }]);
+            };
+
+            const saveProject = async () => {
+                if (!project.name.trim() || items.length === 0) {
+                    alert('Please enter project name and add at least one item');
+                    return;
+                }
+
+                try {
+                    const { data: projectData, error: projectError } = await supabase
+                        .from('projects')
+                        .insert([project])
+                        .select()
+                        .single();
+
+                    if (projectError) throw projectError;
+
+                    for (const item of items) {
+                        const { data: itemData, error: itemError } = await supabase
+                            .from('project_items')
+                            .insert([{
+                                project_id: projectData.id,
+                                item_name: item.item_name,
+                                area: item.area,
+                                price_per_m2: item.price_per_m2,
+                                material_cost_per_m2: item.material_cost_per_m2
+                            }])
+                            .select()
+                            .single();
+
+                        if (itemError) throw itemError;
+
+                        if (item.subcontractor_id && item.subcontractor_price_per_m2) {
+                            const { error: assignmentError } = await supabase
+                                .from('subcontractor_assignments')
+                                .insert([{
+                                    project_item_id: itemData.id,
+                                    subcontractor_id: item.subcontractor_id,
+                                    price_per_m2: item.subcontractor_price_per_m2
+                                }]);
+
+                            if (assignmentError) throw assignmentError;
+                        }
+                    }
+
+                    onSuccess();
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-2xl font-bold mb-6">Create New Project</h2>
+                    <div className="space-y-4 mb-6">
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Project Name *</label>
+                                <input type="text" value={project.name} onChange={(e) => setProject({ ...project, name: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" placeholder="e.g., Villa Ahmed" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Client Name</label>
+                                <input type="text" value={project.client_name} onChange={(e) => setProject({ ...project, client_name: e.target.value })}
+                                    className="w-full px-4 py-2 border-2 rounded-lg" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold">Project Items</h3>
+                            <button onClick={addItem} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">➕ Add Item</button>
+                        </div>
+                        <div className="space-y-4">
+                            {items.map((item, index) => (
+                                <div key={index} className="border-2 p-4 rounded-lg">
+                                    <h4 className="font-semibold mb-3">Item #{index + 1}</h4>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Item Name *</label>
+                                            <input type="text" value={item.item_name}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[index].item_name = e.target.value;
+                                                    setItems(newItems);
+                                                }}
+                                                className="w-full px-4 py-2 border-2 rounded-lg" placeholder="e.g., Living Room Ceiling" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Area (m²) *</label>
+                                            <input type="number" value={item.area}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[index].area = e.target.value;
+                                                    setItems(newItems);
+                                                }}
+                                                className="w-full px-4 py-2 border-2 rounded-lg" step="0.01" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Price to Owner (EGP/m²) *</label>
+                                            <input type="number" value={item.price_per_m2}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[index].price_per_m2 = e.target.value;
+                                                    setItems(newItems);
+                                                }}
+                                                className="w-full px-4 py-2 border-2 rounded-lg" step="0.01" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Material Cost (EGP/m²)</label>
+                                            <input type="number" value={item.material_cost_per_m2}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[index].material_cost_per_m2 = e.target.value;
+                                                    setItems(newItems);
+                                                }}
+                                                className="w-full px-4 py-2 border-2 rounded-lg" step="0.01" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Subcontractor</label>
+                                            <select value={item.subcontractor_id}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[index].subcontractor_id = e.target.value;
+                                                    setItems(newItems);
+                                                }}
+                                                className="w-full px-4 py-2 border-2 rounded-lg">
+                                                <option value="">Select subcontractor</option>
+                                                {subcontractors.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Subcontractor Price (EGP/m²)</label>
+                                            <input type="number" value={item.subcontractor_price_per_m2}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[index].subcontractor_price_per_m2 = e.target.value;
+                                                    setItems(newItems);
+                                                }}
+                                                className="w-full px-4 py-2 border-2 rounded-lg" step="0.01" />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <button onClick={saveProject} className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold text-lg">
+                            💾 Create Project
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<ConstructionManagementSystem />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>
