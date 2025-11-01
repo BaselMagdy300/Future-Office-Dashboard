@@ -19,18 +19,172 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Future" />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="apple-touch-startup-image" 
-      href="/apple-touch-icon.png"
-      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)">
+    <link rel="apple-touch-startup-image" href="/apple-touch-icon.png"
+        media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
+
 </head>
 <style>
-  body {
-    overscroll-behavior-y: contain;
-    -webkit-overflow-scrolling: touch;
-  }
+    /* ============================================
+       MODERN COLOR PALETTE - ARCHITECTURE BRAND
+       ============================================ */
+    :root {
+        /* Primary - Gold tone from logo */
+        --primary: #C1B283;
+        --primary-dark: #A89C6F;
+        --primary-light: #D4C89A;
+        --primary-lighter: #E3DABC;
+        --primary-lightest: #F5F1E6;
+
+        /* Complementary colors */
+        --accent: #4A5568;
+        /* Cool gray-blue for contrast */
+        --accent-dark: #2D3748;
+        --accent-light: #718096;
+
+        /* Neutrals */
+        --bg-primary: #FAFAF9;
+        --bg-secondary: #FFFFFF;
+        --bg-tertiary: #F5F5F4;
+
+        --text-primary: #1F2937;
+        --text-secondary: #6B7280;
+        --text-tertiary: #9CA3AF;
+        --text-inverse: #FFFFFF;
+
+        /* Semantic colors */
+        --success: #10B981;
+        --success-light: #D1FAE5;
+        --error: #EF4444;
+        --error-light: #FEE2E2;
+        --warning: #F59E0B;
+        --warning-light: #FEF3C7;
+        --info: #3B82F6;
+        --info-light: #DBEAFE;
+
+        /* Shadow & borders */
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --border: #E5E7EB;
+        --border-light: #F3F4F6;
+
+        /* Spacing */
+        --radius-sm: 0.25rem;
+        --radius: 0.5rem;
+        --radius-lg: 0.75rem;
+        --radius-xl: 1rem;
+
+        /* Typography */
+        --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+    }
+
+    body {
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: var(--font-display);
+    }
+
+    /* RTL Support */
+    .rtl {
+        direction: rtl;
+    }
+
+    .rtl * {
+        text-align: right;
+    }
+
+    .rtl .flex {
+        flex-direction: row-reverse;
+    }
+
+    .ltr {
+        direction: ltr;
+    }
+
+    @media (max-width: 768px) {
+        .mobile-menu {
+            display: block;
+        }
+
+        .desktop-menu {
+            display: none;
+        }
+    }
+
+    /* Custom Brand Classes */
+    .bg-brand-primary {
+        background-color: var(--bg-primary);
+    }
+
+    .bg-brand-gradient {
+        background: linear-gradient(135deg, var(--bg-primary) 0%, var(--primary-lightest) 100%);
+    }
+
+    .btn-primary {
+        background-color: var(--primary);
+        color: var(--text-inverse);
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        background-color: var(--primary-dark);
+    }
+
+    .btn-secondary {
+        background-color: var(--bg-secondary);
+        color: var(--accent);
+        border: 2px solid var(--accent);
+        transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--accent);
+        color: var(--text-inverse);
+    }
+
+    .card {
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        box-shadow: var(--shadow-md);
+    }
+
+    .nav-active {
+        background-color: var(--primary) !important;
+        color: var(--text-inverse) !important;
+    }
+
+    .nav-inactive {
+        background-color: var(--bg-tertiary) !important;
+        color: var(--text-primary) !important;
+    }
+
+    .nav-inactive:hover {
+        background-color: var(--primary-lightest) !important;
+    }
+
+    .text-primary {
+        color: var(--text-primary);
+    }
+
+    .text-secondary {
+        color: var(--text-secondary);
+    }
+
+    .border-brand {
+        border-color: var(--border);
+    }
 </style>
+
 <body>
     <div id="root"></div>
     <script type="text/babel">
@@ -73,6 +227,102 @@
         };
 
         // ============================================
+        // TRANSLATIONS
+        // ============================================
+        const translations = {
+            en: {
+                dashboard: 'Dashboard',
+                projects: 'Projects',
+                subcontractors: 'Subcontractors',
+                suppliers: 'Suppliers',
+                newProject: 'New Project',
+                totalRevenue: 'Total Revenue',
+                totalProfit: 'Total Profit',
+                totalArea: 'Total Area',
+                totalProjects: 'Total Projects',
+                active: 'Active',
+                inProgress: 'In Progress',
+                completed: 'Completed',
+                margin: 'margin',
+                subcontractorPayments: 'Subcontractor Payments',
+                paid: 'Paid',
+                outstanding: 'Outstanding',
+                totalBalance: 'Total Balance',
+                subcontractorsCount: 'Subcontractors',
+                supplierAccountBalances: 'Supplier Account Balances',
+                totalMaterialCost: 'Total Material Cost',
+                totalPaid: 'Total Paid',
+                totalOutstanding: 'Total Outstanding',
+                suppliersCount: 'Suppliers',
+                ownerPaymentTracking: 'Owner Payment Tracking',
+                remaining: 'Remaining',
+                overallPaymentProgress: 'Overall Payment Progress',
+                recentProjects: 'Recent Projects',
+                allProjects: 'All Projects',
+                createNewProject: 'Create New Project',
+                noProjectsYet: 'No projects yet. Create your first project!',
+                loading: 'Loading...',
+                itemName: 'Item Name',
+                area: 'Area',
+                priceToOwner: 'Price to Owner (EGP/m²)',
+                subcontractor: 'Subcontractor',
+                subcontractorPrice: 'Subcontractor Price (EGP/m²)',
+                selectSubcontractor: 'Select subcontractor',
+                projectItems: 'Project Items',
+                addItem: 'Add Item',
+                createProject: 'Create Project',
+                itemNumber: 'Item',
+                projectName: 'Project Name',
+                clientName: 'Client Name'
+            },
+            ar: {
+                dashboard: 'الرئيسية',
+                projects: 'المشاريع',
+                subcontractors: 'المقاولين ',
+                suppliers: 'الموردين',
+                newProject: 'مشروع جديد',
+                totalRevenue: 'إجمالي الإيرادات',
+                totalProfit: 'إجمالي الربح',
+                totalArea: 'المساحة الإجمالية',
+                totalProjects: 'إجمالي المشاريع',
+                active: 'نشط',
+                inProgress: 'قيد التنفيذ',
+                completed: 'مكتمل',
+                margin: 'الهامش',
+                subcontractorPayments: 'مدفوعات المقاولين',
+                paid: 'مدفوع',
+                outstanding: 'مستحق',
+                totalBalance: 'إجمالي الرصيد',
+                subcontractorsCount: 'مقاولين',
+                supplierAccountBalances: 'أرصدة حسابات الموردين',
+                totalMaterialCost: 'إجمالي تكلفة المواد',
+                totalPaid: 'إجمالي المدفوع',
+                totalOutstanding: 'إجمالي المستحق',
+                suppliersCount: 'موردين',
+                ownerPaymentTracking: 'تتبع مدفوعات المالك',
+                remaining: 'متبقي',
+                overallPaymentProgress: 'تقدم الدفع الإجمالي',
+                recentProjects: 'المشاريع الأخيرة',
+                allProjects: 'جميع المشاريع',
+                createNewProject: 'إنشاء مشروع جديد',
+                noProjectsYet: 'لا توجد مشاريع بعد. أنشئ مشروعك الأول!',
+                loading: 'جاري التحميل...',
+                itemName: 'البند',
+                area: 'المساحة',
+                priceToOwner: 'السعر للمالك (جنيه/م²)',
+                subcontractor: 'المقاول',
+                subcontractorPrice: 'سعر المقاول (جنيه/م²)',
+                selectSubcontractor: 'اختر مقاول',
+                projectItems: 'بنود المشروع',
+                addItem: 'إضافة بند',
+                createProject: 'إنشاء مشروع',
+                itemNumber: 'البند',
+                projectName: 'اسم المشروع',
+                clientName: 'اسم العميل'
+            }
+        };
+
+        // ============================================
         // MAIN APP
         // ============================================
         const ConstructionManagementSystem = () => {
@@ -82,9 +332,18 @@
             const [suppliers, setSuppliers] = useState([]);
             const [loading, setLoading] = useState(false);
             const [message, setMessage] = useState({ text: '', type: '' });
+            const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+            const [language, setLanguage] = useState('en');
 
             useEffect(() => {
                 loadAllData();
+
+                // Mobile detection on resize
+                const handleResize = () => {
+                    setIsMobile(window.innerWidth < 768);
+                };
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
             }, []);
 
             const loadAllData = async () => {
@@ -231,28 +490,49 @@
                 };
             }, [projects, subcontractors, suppliers]);
 
+            const t = translations[language];
+            const isRTL = language === 'ar';
+
             return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+                <div className={`min-h-screen bg-brand-gradient ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
                     <nav className="bg-white shadow-lg sticky top-0 z-40">
                         <div className="max-w-7xl mx-auto px-4">
                             <div className="flex justify-between items-center py-4 flex-wrap gap-2">
-                                <h1 className="text-2xl font-bold text-blue-600">Future Office</h1>
-                                <div className="flex gap-2 flex-wrap">
-                                    {[
-                                        { view: 'dashboard', icon: '📊', label: 'Dashboard' },
-                                        { view: 'projects', icon: '📁', label: 'Projects' },
-                                        { view: 'subcontractors', icon: '👷', label: 'Subcontractors' },
-                                        { view: 'suppliers', icon: '🏪', label: 'Suppliers' }
+                                <div className="flex items-center gap-2">
+                                    <img src="web-app-manifest-512x512.png" alt="Logo" className="w-20 h-20" />
+                                </div>
+                                <div className="flex gap-2 flex-wrap items-center">
+                                    {!isMobile && [
+                                        { view: 'dashboard', icon: '📊', label: t.dashboard },
+                                        { view: 'projects', icon: '📁', label: t.projects },
+                                        { view: 'subcontractors', icon: '👷', label: t.subcontractors },
+                                        { view: 'suppliers', icon: '🏪', label: t.suppliers }
                                     ].map(item => (
                                         <button key={item.view} onClick={() => setCurrentView(item.view)}
-                                            className={`px-4 py-2 rounded-lg font-semibold transition ${currentView === item.view ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            className={`px-4 py-2 rounded-lg font-semibold transition ${currentView === item.view ? 'nav-active' : 'nav-inactive'
                                                 }`}>
-                                            {item.icon} {item.label}
+                                            {isMobile ? item.icon : `${item.icon} ${item.label}`}
                                         </button>
                                     ))}
-                                    <button onClick={() => setCurrentView('new-project')}
-                                        className="px-4 py-2 rounded-lg font-semibold bg-green-600 text-white hover:bg-green-700 transition">
-                                        ➕ New Project
+                                    {isMobile && (
+                                        <select value={currentView} onChange={(e) => setCurrentView(e.target.value)}
+                                            className="px-3 py-2 rounded-lg font-semibold border-2 border-gray-300 text-sm">
+                                            <option value="dashboard">📊 {t.dashboard}</option>
+                                            <option value="projects">📁 {t.projects}</option>
+                                            <option value="subcontractors">👷 {t.subcontractors}</option>
+                                            <option value="suppliers">🏪 {t.suppliers}</option>
+                                            <option value="new-project">➕ {t.newProject}</option>
+                                        </select>
+                                    )}
+                                    {!isMobile && (
+                                        <button onClick={() => setCurrentView('new-project')}
+                                            className="px-4 py-2 rounded-lg font-semibold btn-primary">
+                                            ➕ {t.newProject}
+                                        </button>
+                                    )}
+                                    <button onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+                                        className="px-3 py-2 rounded-lg font-semibold btn-secondary">
+                                        {language === 'en' ? 'العربية' : 'English'}
                                     </button>
                                 </div>
                             </div>
@@ -276,11 +556,11 @@
                     )}
 
                     <div className="max-w-7xl mx-auto p-4 md:p-8">
-                        {currentView === 'dashboard' && <Dashboard metrics={dashboardMetrics} projects={projects} />}
-                        {currentView === 'projects' && <ProjectsList projects={projects} subcontractors={subcontractors} suppliers={suppliers} onRefresh={loadAllData} showMessage={showMessage} />}
-                        {currentView === 'subcontractors' && <SubcontractorsList subcontractors={subcontractors} onRefresh={loadSubcontractors} showMessage={showMessage} />}
-                        {currentView === 'suppliers' && <SuppliersList suppliers={suppliers} projects={projects} onRefresh={loadSuppliers} showMessage={showMessage} />}
-                        {currentView === 'new-project' && <NewProject onSuccess={() => { loadAllData(); setCurrentView('projects'); showMessage('Project created!'); }} showMessage={showMessage} subcontractors={subcontractors} />}
+                        {currentView === 'dashboard' && <Dashboard metrics={dashboardMetrics} projects={projects} language={language} />}
+                        {currentView === 'projects' && <ProjectsList projects={projects} subcontractors={subcontractors} suppliers={suppliers} onRefresh={loadAllData} showMessage={showMessage} language={language} />}
+                        {currentView === 'subcontractors' && <SubcontractorsList subcontractors={subcontractors} onRefresh={loadSubcontractors} showMessage={showMessage} language={language} />}
+                        {currentView === 'suppliers' && <SuppliersList suppliers={suppliers} projects={projects} onRefresh={loadSuppliers} showMessage={showMessage} language={language} />}
+                        {currentView === 'new-project' && <NewProject onSuccess={() => { loadAllData(); setCurrentView('projects'); showMessage('Project created!'); }} showMessage={showMessage} subcontractors={subcontractors} language={language} />}
                     </div>
                 </div>
             );
@@ -289,109 +569,112 @@
         // ============================================
         // DASHBOARD
         // ============================================
-        const Dashboard = ({ metrics, projects }) => (
-            <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <MetricCard title="Total Revenue" value={`${formatCurrency(metrics.totalRevenue)} EGP`} icon="💰" color="blue" />
-                    <MetricCard title="Total Profit" value={`${formatCurrency(metrics.totalProfit)} EGP`} icon="📈" color="green" subtitle={`${metrics.profitMargin.toFixed(1)}% margin`} />
-                    <MetricCard title="Total Area" value={`${formatCurrency(metrics.totalArea)} m²`} icon="📏" color="purple" />
-                    <MetricCard title="Total Projects" value={metrics.totalProjects} icon="📁" color="orange" subtitle={`${metrics.completedProjects} completed`} />
-                </div>
+        const Dashboard = ({ metrics, projects, language }) => {
+            const t = translations[language];
+            return (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <MetricCard title={t.totalRevenue} value={`${formatCurrency(metrics.totalRevenue)} EGP`} icon="💰" color="blue" />
+                        <MetricCard title={t.totalProfit} value={`${formatCurrency(metrics.totalProfit)} EGP`} icon="📈" color="green" subtitle={`${metrics.profitMargin.toFixed(1)}% ${t.margin}`} />
+                        <MetricCard title={t.totalArea} value={`${formatCurrency(metrics.totalArea)} m²`} icon="📏" color="purple" />
+                        <MetricCard title={t.totalProjects} value={metrics.totalProjects} icon="📁" color="orange" subtitle={`${metrics.completedProjects} ${t.completed}`} />
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <MetricCard title="Active" value={metrics.activeProjects} icon="🟢" color="green" />
-                    <MetricCard title="In Progress" value={metrics.inProgressProjects} icon="🔵" color="blue" />
-                    <MetricCard title="Completed" value={metrics.completedProjects} icon="✅" color="purple" />
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <MetricCard title={t.active} value={metrics.activeProjects} icon="🟢" color="green" />
+                        <MetricCard title={t.inProgress} value={metrics.inProgressProjects} icon="🔵" color="blue" />
+                        <MetricCard title={t.completed} value={metrics.completedProjects} icon="✅" color="purple" />
+                    </div>
 
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">👷 Subcontractor Payments</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-green-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Paid</p>
-                            <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalSubPaid)} EGP</p>
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4">👷 {t.subcontractorPayments}</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.paid}</p>
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalSubPaid)} EGP</p>
+                            </div>
+                            <div className="bg-red-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.outstanding}</p>
+                                <p className="text-2xl font-bold text-red-600">{formatCurrency(metrics.totalSubOwed)} EGP</p>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.totalBalance}</p>
+                                <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.totalSubPaid + metrics.totalSubOwed)} EGP</p>
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.subcontractorsCount}</p>
+                                <p className="text-2xl font-bold text-blue-600">{metrics.totalSubcontractors}</p>
+                            </div>
                         </div>
-                        <div className="bg-red-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Outstanding</p>
-                            <p className="text-2xl font-bold text-red-600">{formatCurrency(metrics.totalSubOwed)} EGP</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4">🏪 {t.supplierAccountBalances}</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.totalMaterialCost}</p>
+                                <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.totalMatCost)} EGP</p>
+                            </div>
+                            <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.totalPaid}</p>
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalMatPaid)} EGP</p>
+                            </div>
+                            <div className="bg-red-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.totalOutstanding}</p>
+                                <p className="text-2xl font-bold text-red-600">{formatCurrency(metrics.totalMatOwed)} EGP</p>
+                            </div>
+                            <div className="bg-orange-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.suppliersCount}</p>
+                                <p className="text-2xl font-bold text-orange-600">{metrics.totalSuppliers}</p>
+                            </div>
                         </div>
-                        <div className="bg-purple-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Total Balance</p>
-                            <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.totalSubPaid + metrics.totalSubOwed)} EGP</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4">💰 {t.ownerPaymentTracking}</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.totalRevenue}</p>
+                                <p className="text-2xl font-bold text-blue-600">{formatCurrency(metrics.totalRevenue)} EGP</p>
+                            </div>
+                            <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.paid}</p>
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalOwnerPaid)} EGP</p>
+                            </div>
+                            <div className="bg-orange-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-600">{t.remaining}</p>
+                                <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.totalOwnerOwed)} EGP</p>
+                            </div>
                         </div>
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Subcontractors</p>
-                            <p className="text-2xl font-bold text-blue-600">{metrics.totalSubcontractors}</p>
+                        <div className="mt-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm font-semibold text-gray-700">{t.overallPaymentProgress}</span>
+                                <span className="text-sm font-bold text-green-600">
+                                    {metrics.totalRevenue > 0 ? ((metrics.totalOwnerPaid / metrics.totalRevenue * 100)).toFixed(1) : 0}%
+                                </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-6">
+                                <div
+                                    className="bg-gradient-to-r from-green-500 to-green-600 h-6 rounded-full transition-all duration-500 ease-in-out"
+                                    style={{ width: `${Math.min(metrics.totalRevenue > 0 ? (metrics.totalOwnerPaid / metrics.totalRevenue * 100) : 0, 100)}%` }}
+                                ></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>0 EGP</span>
+                                <span>{formatCurrency(metrics.totalRevenue)} EGP</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4">{t.recentProjects}</h2>
+                        <div className="space-y-4">
+                            {projects.slice(0, 5).map(project => <ProjectSummaryCard key={project.id} project={project} />)}
                         </div>
                     </div>
                 </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">🏪 Supplier Account Balances</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-purple-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Total Material Cost</p>
-                            <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.totalMatCost)} EGP</p>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Total Paid</p>
-                            <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalMatPaid)} EGP</p>
-                        </div>
-                        <div className="bg-red-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Total Outstanding</p>
-                            <p className="text-2xl font-bold text-red-600">{formatCurrency(metrics.totalMatOwed)} EGP</p>
-                        </div>
-                        <div className="bg-orange-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Suppliers</p>
-                            <p className="text-2xl font-bold text-orange-600">{metrics.totalSuppliers}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">💰 Owner Payment Tracking</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Total Revenue</p>
-                            <p className="text-2xl font-bold text-blue-600">{formatCurrency(metrics.totalRevenue)} EGP</p>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Paid</p>
-                            <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.totalOwnerPaid)} EGP</p>
-                        </div>
-                        <div className="bg-orange-50 p-4 rounded-lg">
-                            <p className="text-sm text-gray-600">Remaining</p>
-                            <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.totalOwnerOwed)} EGP</p>
-                        </div>
-                    </div>
-                    <div className="mt-4">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-semibold text-gray-700">Overall Payment Progress</span>
-                            <span className="text-sm font-bold text-green-600">
-                                {metrics.totalRevenue > 0 ? ((metrics.totalOwnerPaid / metrics.totalRevenue * 100)).toFixed(1) : 0}%
-                            </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-6">
-                            <div
-                                className="bg-gradient-to-r from-green-500 to-green-600 h-6 rounded-full transition-all duration-500 ease-in-out"
-                                style={{ width: `${Math.min(metrics.totalRevenue > 0 ? (metrics.totalOwnerPaid / metrics.totalRevenue * 100) : 0, 100)}%` }}
-                            ></div>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>0 EGP</span>
-                            <span>{formatCurrency(metrics.totalRevenue)} EGP</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Projects</h2>
-                    <div className="space-y-4">
-                        {projects.slice(0, 5).map(project => <ProjectSummaryCard key={project.id} project={project} />)}
-                    </div>
-                </div>
-            </div>
-        );
+            );
+        };
 
         const MetricCard = ({ title, value, icon, color, subtitle }) => {
             const colors = {
@@ -1802,12 +2085,13 @@ Type "DELETE" to confirm:`;
         // ============================================
         // NEW PROJECT (Simplified)
         // ============================================
-        const NewProject = ({ onSuccess, showMessage, subcontractors }) => {
+        const NewProject = ({ onSuccess, showMessage, subcontractors, language }) => {
             const [project, setProject] = useState({ name: '', client_name: '', status: 'active', notes: '' });
             const [items, setItems] = useState([]);
+            const t = translations[language];
 
             const addItem = () => {
-                setItems([...items, { item_name: '', area: '', price_per_m2: '', material_cost_per_m2: '', subcontractor_id: '', subcontractor_price_per_m2: '' }]);
+                setItems([...items, { item_name: '', area: '', price_per_m2: '', subcontractor_id: '', subcontractor_price_per_m2: '' }]);
             };
 
             const saveProject = async () => {
@@ -1833,7 +2117,7 @@ Type "DELETE" to confirm:`;
                                 item_name: item.item_name,
                                 area: item.area,
                                 price_per_m2: item.price_per_m2,
-                                material_cost_per_m2: item.material_cost_per_m2
+                                material_cost_per_m2: ''
                             }])
                             .select()
                             .single();
@@ -1913,16 +2197,6 @@ Type "DELETE" to confirm:`;
                                                 onChange={(e) => {
                                                     const newItems = [...items];
                                                     newItems[index].price_per_m2 = e.target.value;
-                                                    setItems(newItems);
-                                                }}
-                                                className="w-full px-4 py-2 border-2 rounded-lg" step="0.01" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">Material Cost (EGP/m²)</label>
-                                            <input type="number" value={item.material_cost_per_m2}
-                                                onChange={(e) => {
-                                                    const newItems = [...items];
-                                                    newItems[index].material_cost_per_m2 = e.target.value;
                                                     setItems(newItems);
                                                 }}
                                                 className="w-full px-4 py-2 border-2 rounded-lg" step="0.01" />
